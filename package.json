@@ -1,0 +1,53 @@
+{
+  "name": "skillpkg",
+  "version": "0.1.0",
+  "description": "Package manager for coding-agent skills: install, list, update, audit and uninstall skills across Claude Code / ZCode / Codex from any git repo.",
+  "type": "module",
+  "bin": {
+    "sm": "./dist/cli.js",
+    "skillpkg": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/cli.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.test.json",
+    "test": "vitest run",
+    "prepublishOnly": "npm run build && npm test"
+  },
+  "keywords": [
+    "claude-code",
+    "zcode",
+    "codex",
+    "agent",
+    "skills",
+    "cli",
+    "package-manager",
+    "skillpkg"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lixiaonatongxue/Agent-SkillsManager.git"
+  },
+  "author": "wangwujie253",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  },
+  "dependencies": {
+    "cli-table3": "^0.6.5",
+    "commander": "^13.0.0",
+    "gray-matter": "^4.0.3",
+    "picocolors": "^1.1.1"
+  }
+}
