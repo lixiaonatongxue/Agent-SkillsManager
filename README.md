@@ -1,68 +1,68 @@
-# skillpkg (`sm`) — Agent Skills 管理器
+**English** | [简体中文](README.zh-CN.md)
 
-> **A package manager for coding-agent skills — "npm for skills".**
-> 一条命令，把任意 git 仓库里的技能（skills）安装进 Claude Code / ZCode / Codex，统一列出、更新、安全体检、干净卸载。
+# skillpkg (`sm`) — Package Manager for Agent Skills
 
-**English TL;DR:** skillpkg installs, lists, updates, audits and uninstalls [SKILL.md](https://code.claude.com/docs/en/skills)-style agent skills across Claude Code, ZCode and Codex from any git repo, with a lockfile for reproducibility and a heuristic security scanner (`sm doctor`). MIT licensed.
+> **The package manager for coding-agent skills — "npm for skills".**
+> One command installs skills from any git repo into Claude Code / ZCode / Codex, with unified listing, updating, security auditing and clean uninstalls.
 
 ---
 
-## 为什么需要它
+## Why
 
-2026 年，编码 agent 的 skills 生态正在爆发，但管理方式还停留在原始社会：
+The agent-skills ecosystem is exploding, but managing them is still stuck in the stone age:
 
-- **安装** = 手动 `git clone` 再人肉拷贝，每家 agent 的目录约定还各不相同
-- **更新** = 不存在；**卸载** = 手动删文件夹，还删不干净
-- **风险** = 来路不明的技能里藏着 `curl ... | sh`，没人帮你检查
+- **Install** = manual `git clone` plus hand-copying, and every agent expects a different directory
+- **Update** = doesn't exist; **uninstall** = delete folders by hand, never cleanly
+- **Risk** = a rogue skill hiding `curl ... | sh` — nobody checks it for you
 
 ```bash
-# 以前：clone、找目录、复制、祈祷
+# Before: clone, hunt for the directory, copy, pray
 git clone https://github.com/someone/some-skill
-cp -r some-skill ~/.claude/skills/       # zcode 的目录又是另一个……
+cp -r some-skill ~/.claude/skills/       # and zcode uses yet another directory...
 
-# 现在
-sm install someone/some-skill           # 自动装进所有已检测到的 agent
+# Now
+sm install someone/some-skill           # installed into every detected agent
 ```
 
-## 安装
+## Installation
 
 ```bash
-# 零安装试用
+# try it without installing
 npx skillpkg list
 
-# 或全局安装
+# or install globally
 npm install -g skillpkg
 ```
 
-要求：Node ≥ 20，`git` 可用（GitHub 简写需要网络）。
+Requirements: Node ≥ 20 and a working `git` (network needed for GitHub shorthand).
 
-## 命令
+## Commands
 
-| 命令 | 说明 |
+| Command | What it does |
 |---|---|
-| `sm install <source>` | 从 git 仓库 / `owner/repo` 简写 / 本地目录安装技能 |
-| `sm list` | 跨 agent、跨作用域列出所有技能与版本（commit） |
-| `sm update [name]` | 更新到源仓库最新 commit，显示 `旧 → 新` 变更摘要 |
-| `sm uninstall <name>` | 按锁文件干净移除，不留残留 |
-| `sm doctor` | 静态安全体检所有已装技能（只报告，不拦截） |
-| `sm agents` | 显示支持的 agent 与本机检测状态 |
+| `sm install <source>` | Install skill(s) from a git repo, `owner/repo` shorthand, or a local directory |
+| `sm list` | List all skills across agents and scopes with their versions (commits) |
+| `sm update [name]` | Update to the latest source commit, showing an `old → new` change summary |
+| `sm uninstall <name>` | Clean removal guided by the lockfile — no leftovers |
+| `sm doctor` | Static security audit of every installed skill (report-only) |
+| `sm agents` | Show supported agents and their detection status on this machine |
 
-### install 详解
+### install in depth
 
 ```bash
-sm install anthropics/skills --skill docx        # GitHub 简写 + 从多技能仓库挑一个
-sm install https://github.com/x/y --all          # 装下仓库里全部技能
-sm install ./my-local-skill                      # 本地目录（开发技能时配合 --link 很香）
-sm install x/y --agent claude-code,zcode         # 默认装进所有已检测到的 agent
-sm install x/y --scope project                   # 装进当前项目（.claude/skills 等）
-sm install x/y --link                            # 链接而非拷贝：源更新即生效（Windows 用 junction）
+sm install anthropics/skills --skill docx        # GitHub shorthand + pick one skill from a multi-skill repo
+sm install https://github.com/x/y --all          # install every skill in the repo
+sm install ./my-local-skill                      # local directory (pairs great with --link while developing)
+sm install x/y --agent claude-code,zcode         # default: every detected agent
+sm install x/y --scope project                   # install into the current project (.claude/skills etc.)
+sm install x/y --link                            # link instead of copy: source updates are live (junctions on Windows)
 ```
 
-安装时自动解析 `SKILL.md` frontmatter：缺失 `description`、名称与目录不一致等问题会给出警告——社区技能质量参差，这道校验本身就有价值。
+During install the `SKILL.md` frontmatter is parsed and validated: missing `description`, name/directory mismatches and similar quality problems produce warnings — with community skills being as inconsistent as they are, this check alone is valuable.
 
-### 锁文件（skills.lock.json）
+### The lockfile (skills.lock.json)
 
-用户级锁文件在 `~/.skillpkg/skills.lock.json`，项目级在项目根 `skills.lock.json`，可提交进 git 实现团队复现：
+User-scope lockfile lives at `~/.skillpkg/skills.lock.json`, project-scope at the project root (`skills.lock.json`) so it can be committed for reproducible team setups:
 
 ```json
 {
@@ -82,53 +82,53 @@ sm install x/y --link                            # 链接而非拷贝：源更�
 }
 ```
 
-### sm doctor 安全体检
+### sm doctor — the security checkup
 
-安装来源不明的技能前先扫一遍。规则开源可审、只报告不拦截、可用 `--ignore <rule>` 压噪：
+Run it before installing skills from unknown sources. Rules are open for review, findings never block, and `--ignore <rule>` silences noisy ones:
 
-| 严重度 | 规则 | 识别内容 |
+| Severity | Rule | Detects |
 |---|---|---|
-| high | `HIGH_PIPE_TO_SHELL` | `curl/wget ... \| sh`、`\| powershell` 下载即执行 |
+| high | `HIGH_PIPE_TO_SHELL` | `curl/wget ... \| sh`, `\| powershell` — download-and-execute |
 | high | `HIGH_INVOKE_EXPRESSION` / `HIGH_EVAL_EXEC` | `Invoke-Expression` / `iex` / `eval('...')` |
-| high | `HIGH_BASE64_DECODE_EXEC` | base64 解码后直接执行（混淆载荷） |
-| high | `HIGH_CREDS_EXFIL` | 同一文件内既引用凭据（`~/.ssh`、`.env`、浏览器配置）又有网络请求 |
-| medium | `MED_DATA_EGRESS` | POST / 上传数据到外部 |
-| medium | `MED_ENV_COLLECTION` | 收集环境变量并交给网络代码 |
-| medium | `MED_PERSISTENCE` | 改 shell 配置、注册启动项、计划任务 |
-| low | `LOW_BINARY_BLOB` / `LOW_LONG_LINE` | 技能内含二进制 / 超长单行（混淆嫌疑） |
+| high | `HIGH_BASE64_DECODE_EXEC` | base64-decoded content executed directly (obfuscated payloads) |
+| high | `HIGH_CREDS_EXFIL` | credential material (`~/.ssh`, `.env`, browser profiles) referenced in a file that also makes network calls |
+| medium | `MED_DATA_EGRESS` | POST / upload of data to external endpoints |
+| medium | `MED_ENV_COLLECTION` | environment variables collected and handed to network code |
+| medium | `MED_PERSISTENCE` | shell profile edits, startup entries, scheduled tasks |
+| low | `LOW_BINARY_BLOB` / `LOW_LONG_LINE` | binaries inside a skill / very long single lines (obfuscation suspects) |
 
-> ⚠️ doctor 是启发式静态分析：**可能漏报也可能误报**，结论仅供参考，不能替代人工审查。
+> ⚠️ doctor is heuristic static analysis: it **can miss things and can over-flag**. Treat findings as input for review, not a verdict.
 
-## 支持的 agent
+## Supported agents
 
-| Agent | 用户级目录 | 项目级目录 |
+| Agent | User scope | Project scope |
 |---|---|---|
 | Claude Code | `~/.claude/skills/` | `<repo>/.claude/skills/` |
 | ZCode | `~/.zcode/skills/` | `<repo>/.zcode/skills/` |
 | Codex | `~/.codex/skills/` | `<repo>/.codex/skills/` |
 
-新 agent = 新增一个约 10 行的适配器文件，欢迎 PR。
+Supporting a new agent is a ~10-line adapter file — PRs welcome.
 
-## 开发
+## Development
 
 ```bash
 git clone https://github.com/lixiaonatongxue/Agent-SkillsManager
 cd Agent-SkillsManager
 npm install
-npm test          # vitest，55+ 用例
+npm test          # vitest, 55+ cases
 npm run build     # tsc -> dist/
 node dist/cli.js --help
 ```
 
-测试全部使用合成数据与沙箱 home（`SKILLPKG_HOME`），不会触碰你真实的 `~/.claude` 等目录。
+Tests use synthetic data and a sandboxed home (`SKILLPKG_HOME`) only — they never touch your real `~/.claude` and friends.
 
-## 路线图
+## Roadmap
 
-- [x] v0.1：install / list / update / uninstall / 锁文件 / 多 agent 适配
-- [x] `sm doctor` 静态安全扫描
-- [ ] v0.2：技能种子索引与 `sm search`；项目级 `sm disable`
-- [ ] v1.0：同名/触发冲突检测；技能使用统计与清理建议；Homebrew/winget 分发
+- [x] v0.1: install / list / update / uninstall / lockfile / multi-agent adapters
+- [x] `sm doctor` static security audit
+- [ ] v0.2: seed registry with `sm search`; project-level `sm disable`
+- [ ] v1.0: duplicate/trigger-conflict detection; usage statistics and cleanup suggestions; Homebrew/winget distribution
 
-## 许可
+## License
 
-MIT。本工具只做"安装器 + 体检"，不分发技能内容本身；各技能仓库的 License 归其作者所有。
+MIT. This tool is an "installer + auditor" only — it does not host or redistribute skill content; each skill repo remains under its author's license.
