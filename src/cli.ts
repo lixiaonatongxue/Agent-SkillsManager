@@ -5,6 +5,7 @@ import Table from 'cli-table3';
 import c from 'picocolors';
 import type { Scope } from './agents/base.js';
 import { ADAPTERS, AGENT_IDS, detectInstalledAgents, getAdapter } from './agents/index.js';
+import { auditSkill, type Finding } from './audit.js';
 import { install } from './install.js';
 import { findProjectRoot, projectLockfile, userLockfile } from './paths.js';
 import { collectRows } from './list.js';
@@ -248,6 +249,72 @@ program
       }
     }
   });
+
+/* ---------------------------------- doctor --------------------------------- */
+
+program
+  .command('doctor')
+  .description('static security audit of every installed skill (heuristic, report-only)')
+  .option('--ignore <rule>', 'suppress findings with this rule id (repeatable)', collect, [])
+  .option('--json', 'print findings as JSON')
+  .action((opts: { ignore: string[]; json?: boolean }) => {
+    const ignore = new Set(opts.ignore);
+    const skillDirs = new Map<string, string>();
+    for (const scopeLock of activeScopes()) {
+      for (const adapter of ADAPTERS) {
+        for (const meta of adapter.listInstalled(scopeLock.scope, scopeLock.repoRoot)) {
+          const key = `${scopeLock.scope}:${meta.name}`;
+          // same skill installed on several agents: audit the first copy only
+          if (!skillDirs.has(key)) skillDirs.set(key, meta.dir);
+        }
+      }
+    }
+
+    const findings: Finding[] = [];
+    for (const [key, dir] of skillDirs) {
+      const skillName = key.split(':').slice(1).join(':');
+      findings.push(...auditSkill(skillName, dir, ignore));
+    }
+    findings.sort(
+      (a, b) =>
+        severityRank(b.severity) - severityRank(a.severity) ||
+        a.skill.localeCompare(b.skill) ||
+        (a.file ?? '').localeCompare(b.file ?? ''),
+    );
+
+    if (opts.json) {
+      console.log(JSON.stringify({ scanned: skillDirs.size, findings }, null, 2));
+      return;
+    }
+
+    if (findings.length === 0) {
+      console.log(`No findings. (${skillDirs.size} skill(s) scanned; heuristics only, not a guarantee)`);
+      return;
+    }
+
+    const table = new Table({ head: ['Severity', 'Skill', 'File', 'Rule', 'Detail'].map((h) => c.bold(h)) });
+    for (const f of findings) {
+      const loc = f.line ? `${f.file}:${f.line}` : f.file;
+      const detail = f.snippet ? `${f.message}\n${c.dim(`    ${f.snippet}`)}` : f.message;
+      table.push([colorSeverity(f.severity), f.skill, loc, f.rule, detail]);
+    }
+    console.log(table.toString());
+    const high = findings.filter((f) => f.severity === 'high').length;
+    const medium = findings.filter((f) => f.severity === 'medium').length;
+    const low = findings.length - high - medium;
+    console.log(
+      `\n${skillDirs.size} skill(s) scanned — ${c.red(`${high} high`)}, ${c.yellow(`${medium} medium`)}, ${low} low findings.`,
+    );
+    console.log(c.dim('Heuristic static analysis only; false positives and misses are both possible. Suppress with --ignore <rule>.'));
+  });
+
+function severityRank(severity: 'high' | 'medium' | 'low'): number {
+  return severity === 'high' ? 3 : severity === 'medium' ? 2 : 1;
+}
+
+function colorSeverity(severity: 'high' | 'medium' | 'low'): string {
+  return severity === 'high' ? c.red('high') : severity === 'medium' ? c.yellow('medium') : c.dim('low');
+}
 
 program.parseAsync(process.argv).catch((err: Error) => {
   console.error(`${c.red('error:')} ${err.message}`);
