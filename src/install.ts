@@ -6,6 +6,7 @@ import { getAdapter } from './agents/index.js';
 import { cloneShallow, headInfo } from './gitutil.js';
 import { findEntry, readLockfile, upsertEntry, writeLockfile } from './lockfile.js';
 import { skillpkgDir } from './paths.js';
+import { pathExists, placeDirectory, todayISO } from './fsutil.js';
 import { parseSkillMd } from './skillmd.js';
 import { resolveSource } from './source.js';
 
@@ -106,7 +107,7 @@ export async function install(sourceInput: string, opts: InstallOptions): Promis
   let commit: string | null = null;
   let tmpDir: string | null = null;
   if (spec.kind === 'git') {
-    const dest = opts.link ? cacheCloneDir(spec.url) : fs.mkdtempSync(path.join(opts.tmpBase ?? os.tmpdir(), 'skillpkg-clone-'));
+    const dest = opts.link ? cloneCacheDir(spec.url) : fs.mkdtempSync(path.join(opts.tmpBase ?? os.tmpdir(), 'skillpkg-clone-'));
     if (!opts.link) tmpDir = dest;
     fs.rmSync(dest, { recursive: true, force: true });
     fs.mkdirSync(path.dirname(dest), { recursive: true });
@@ -145,7 +146,7 @@ export async function install(sourceInput: string, opts: InstallOptions): Promis
           fs.rmSync(dest, { recursive: true, force: true });
           replaced = true;
         }
-        modes.push(placeSkill(srcDir, dest, !!opts.link));
+        modes.push(placeDirectory(srcDir, dest, !!opts.link));
       }
       const mode: 'copy' | 'link' = modes.includes('link') && modes.every((m) => m === 'link') ? 'link' : 'copy';
       if (opts.link && mode === 'copy') {
@@ -157,7 +158,7 @@ export async function install(sourceInput: string, opts: InstallOptions): Promis
         source: spec.kind === 'git' ? spec.url : spec.path,
         path: skill.relPath,
         commit,
-        installedAt: today(),
+        installedAt: todayISO(),
         agents: opts.agentIds.slice(),
         scope: opts.scope,
         license,
@@ -211,32 +212,8 @@ function selectSkills(discovered: DiscoveredSkill[], opts: InstallOptions): Disc
   return selected;
 }
 
-/**
- * Put the skill directory in place: symlink/junction when linking, recursive
- * copy otherwise (skipping .git and node_modules).
- */
-function placeSkill(srcDir: string, destDir: string, link: boolean): 'copy' | 'link' {
-  if (link) {
-    const type = process.platform === 'win32' ? 'junction' : 'dir';
-    try {
-      fs.symlinkSync(srcDir, destDir, type);
-      return 'link';
-    } catch {
-      // Windows without developer mode, or a restricted filesystem: fall back.
-    }
-  }
-  fs.cpSync(srcDir, destDir, {
-    recursive: true,
-    filter: (src) => {
-      const base = path.basename(src);
-      return base !== '.git' && base !== 'node_modules';
-    },
-  });
-  return 'copy';
-}
-
 /** Persistent clone location for --link installs (one clone, many agents). */
-function cacheCloneDir(url: string): string {
+export function cloneCacheDir(url: string): string {
   const safe = url
     .replace(/^[a-z]+:\/\//i, '')
     .replace(/[^a-zA-Z0-9._-]+/g, '-')
@@ -265,21 +242,4 @@ export function detectLicense(...dirs: string[]): string | null {
     }
   }
   return null;
-}
-
-function today(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
-/**
- * existsSync returns false for broken links, and install destinations may be
- * junctions/symlinks, so existence must be probed with lstat.
- */
-function pathExists(p: string): boolean {
-  try {
-    fs.lstatSync(p);
-    return true;
-  } catch {
-    return false;
-  }
 }
